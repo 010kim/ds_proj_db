@@ -18,9 +18,9 @@ import sys
 
 HOST = "147.46.15.238"
 PORT = "7000"
-USER = ""
-PASSWD = ""
-DB = ""
+USER = "DS2024_0005" #본인 ID 넣기
+PASSWD = "DS2024_0005" #본인 PASSWD 넣기
+DB = "DS_proj_15"
 
 connection = mysql.connector.connect(
     host=HOST,
