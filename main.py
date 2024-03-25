@@ -18,9 +18,9 @@ import sys
 
 HOST = "147.46.15.238"
 PORT = "7000"
-USER = ""
-PASSWD = ""
-DB = ""
+USER = "DS2024_0005" #본인 ID 넣기
+PASSWD = "DS2024_0005" #본인 PASSWD 넣기
+DB = "DS_proj_15"
 
 connection = mysql.connector.connect(
     host=HOST,
@@ -107,8 +107,24 @@ def popularity_based_rating(user_input=True, item_cnt=None):
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
+    query = f"""select C.item, avg(C.max_rating_adj) as avg_rating 
+                from (
+                    select A.user, A.item, A.max_rating, (A.max_rating - B.min_user_rating) / (B.max_user_rating - B.min_user_rating) as max_rating_adj, B.max_user_rating, B.min_user_rating     
+                    from (
+                        select user, item, max(rating) as max_rating 
+                        from ratings group by user, item
+                        ) as A 
+                        left join (
+                        select user, max(rating) as max_user_rating, min(rating) as min_user_rating 
+                        from ratings group by user
+                        ) as B
+                        on A.user = B.user
+                    ) as C 
+                group by C.item order by avg_rating desc limit {rec_num}"""
+    res = get_output(query)
+                        
     # 쿼리의 결과를 sample 변수에 저장하세요.
-    sample = [(x, 5.0-0.1*x) for x in range(rec_num)]
+    sample = [(x[0], x[1]) for x in res.values]
 
     # do not change column names
     df = pd.DataFrame(sample, columns=['item', 'prediction'])
