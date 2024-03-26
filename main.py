@@ -157,6 +157,7 @@ def ibcf(user_input=True, user_id=None, rec_threshold=None, rec_max_cnt=None):
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
     # 쿼리의 결과를 sample 변수에 저장하세요.
+
     sample = [(user, 50-x, x/10)
               for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
 
@@ -191,9 +192,24 @@ def ubcf(user_input=True, user_id=None, rec_threshold=None, rec_max_cnt=None):
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
+    query = f"""select F.user_1 as user, F.item, round(sum(F.sim_adj * F.rating_adj), 4) as prediction from 
+                (select D.user_1, D.user_2, D.sim_adj, E.item, E.rating_adj 
+                from (
+                    select B.user_1, B.user_2, round(B.sim / B.sim_sum, 4) as sim_adj
+                    from (
+                    select A.user_1, A.user_2, A.sim, sum(A.sim) over (partition by A.user_1) as sim_sum 
+                    from (select user_1, user_2, sim, row_number() over (partition by user_1 order by sim desc, user_2 asc) as rn from user_similarity) as A 
+                    where A.rn <= 5) as B) as D
+                left join (
+                    select C.user, C.item, case when rating is not null then C.rating else C.avg_rating end as rating_adj from (
+                    select user, item, rating, avg(rating) over (partition by user) as avg_rating from ratings) as C
+                    ) as E
+                on D.user_2 = E.user) as F
+                group by F.user_1, F.item having F.user_1 = {user} and prediction >= {rec_num} order by prediction desc, item asc limit {rec_cnt}"""
+    res = get_output(query)
+    
     # 쿼리의 결과를 sample 변수에 저장하세요.
-    sample = [(user, 50-x, x/10)
-              for x in range(50, math.ceil(rec_num * 10) - 1, -1)]
+    sample = [(x[0], x[1], x[2]) for x in res.values]
 
     # do not change column names
     df = pd.DataFrame(sample, columns=['user', 'item', 'prediction'])
