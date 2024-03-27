@@ -85,7 +85,7 @@ def popularity_based_count(user_input=True, item_cnt=None):
                         where rating is not Null
                         group by item) R1
                 where item >=150 and item < 350
-                order by count desc limit {rec_num}"""
+                order by count desc limit {rec_num}""" ####영렬:item asc 추가해줘야할거같음
     
     # 쿼리의 결과를 sample 변수에 저장하세요.
     sample = get_output(query)
@@ -128,7 +128,7 @@ def popularity_based_rating(user_input=True, item_cnt=None):
                 ) R3
                 where R3.item >=150 and R3.item < 350
                 group by R3.item
-                order by prediction desc limit {rec_num}"""
+                order by prediction desc limit {rec_num}""" ####영렬: min_rating, max_rating 뿐만 아니라 sum_rating도 산출해서, min, max가 동일할 경우 sum_rating으로 나누는 방식 도입 필요
     # 쿼리의 결과를 sample 변수에 저장하세요.
     sample = get_output(query)
 

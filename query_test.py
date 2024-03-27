@@ -28,5 +28,5 @@ def get_output(query):
     return df
 
 if __name__ == "__main__":
-    query = "select * from ratings"
+    query = """select 1/0 from ratings"""
     print(get_output(query))
