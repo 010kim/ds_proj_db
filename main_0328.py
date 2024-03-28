@@ -167,11 +167,11 @@ def ibcf(user_input=True, user_id=None, item_cnt=None):
                     from (select A.item_1, A.item_2, A.sim, sum(A.sim) over (partition by A.item_1) as sim_sum 
                     from (select item_1, item_2, sim, row_number() over (partition by item_1 order by sim desc, item_2 asc) as rn from item_similarity) as A 
                     where A.rn <= 5) as B) as D
-                right join (
+                left join (
                     select C.item, C.user, case when rating is not null then C.rating else C.avg_rating end as rating_adj from (
                     select item, user, rating, avg(rating) over (partition by item) as avg_rating from ratings) as C
                     ) as E
-                on D.item_1 = E.item) as F
+                on D.item_2 = E.item) as F
                 group by F.user, F.item_1
                 having F.user = {user} ) as G
             where G.item not in (select item from ratings where user = {user} and rating is not null )
@@ -212,20 +212,21 @@ def ubcf(user_input=True, user_id=None, item_cnt=None):
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
-    query = f"""select F.user_1 as user, F.item, round(sum(F.sim_adj * F.rating_adj), 4) as prediction from 
-                (select D.user_1, D.user_2, D.sim_adj, E.item, E.rating_adj 
-                from (
-                    select B.user_1, B.user_2, round(B.sim / B.sim_sum, 4) as sim_adj
-                    from (
-                    select A.user_1, A.user_2, A.sim, sum(A.sim) over (partition by A.user_1) as sim_sum 
-                    from (select user_1, user_2, sim, row_number() over (partition by user_1 order by sim desc, user_2 asc) as rn from user_similarity) as A 
-                    where A.rn <= 5) as B) as D
-                left join (
-                    select C.user, C.item, case when rating is not null then C.rating else C.avg_rating end as rating_adj from (
-                    select user, item, rating, avg(rating) over (partition by user) as avg_rating from ratings) as C
-                    ) as E
-                on D.user_2 = E.user) as F
-                group by F.user_1, F.item having F.user_1 = {user}
+    query = f"""select G.user as user, G.item as item, G.prediction as prediction 
+                from (select F.user_1 as user, F.item, round(sum(F.sim_adj * F.rating_adj), 4) as prediction 
+                    from (select D.user_1, D.user_2, D.sim_adj, E.item, E.rating_adj 
+                    from (select B.user_1, B.user_2, round(B.sim / B.sim_sum, 4) as sim_adj
+                        from (select A.user_1, A.user_2, A.sim, sum(A.sim) over (partition by A.user_1) as sim_sum 
+                        from (select user_1, user_2, sim, row_number() over (partition by user_1 order by sim desc, user_2 asc) as rn from user_similarity) as A 
+                        where A.rn <= 5) as B) as D
+                    left join (
+                        select C.user, C.item, case when rating is not null then C.rating else C.avg_rating end as rating_adj from (
+                        select user, item, rating, avg(rating) over (partition by user) as avg_rating from ratings) as C
+                        ) as E
+                    on D.user_2 = E.user) as F
+                    group by F.user_1, F.item
+                    having F.user_1 = {user} ) as G
+                where G.item not in (select item from ratings where user={user} and rating is not null) 
                 order by prediction desc, item asc limit {rec_num}"""
     
     res = get_output(query)
