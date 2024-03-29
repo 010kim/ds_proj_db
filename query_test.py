@@ -28,5 +28,9 @@ def get_output(query):
     return df
 
 if __name__ == "__main__":
-    query = """select 1/0 from ratings"""
+    query = """select * from ratings where item >= 10 and item < 15 and user in (0, 5)"""
+    print(get_output(query))
+    query = """select item, avg(rating) from ratings where item >= 10 and item < 15 and user in (0, 5) group by item"""
+    print(get_output(query))
+    query = """select item, avg(rating) from ratings where item >= 10 and item < 15 and user in (0, 5) group by item"""
     print(get_output(query))
