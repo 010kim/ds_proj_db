@@ -79,12 +79,11 @@ def popularity_based_count(user_input=True, item_cnt=None):
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
-    query = f"""select item, count
-                from (  select item, count(user) as count
-                        from ratings
-                        where rating is not Null
-                        group by item) R1
-                where item >=150 and item < 350
+    query = f"""select item, count(user) as count
+                from ratings
+                where rating is not Null
+                group by item
+                having item >=150 and item < 350
                 order by count desc, item asc limit {rec_num}""" 
     
     # 쿼리의 결과를 sample 변수에 저장하세요.
@@ -115,7 +114,7 @@ def popularity_based_rating(user_input=True, item_cnt=None):
     # YOUR CODE GOES HERE !
     query = f"""select R3.item, round(avg(R3.P_rating),4) as prediction
                 from (
-                    select R1.item, R1.user, round((R1.rating - R2.min_rating)/(R2.max_rating-R2.min_rating),4) as P_rating  
+                    select R1.item, R1.user, round(coalesce((R1.rating - R2.min_rating)/(R2.max_rating-R2.min_rating), R1.rating / R2.max_rating),4) as P_rating 
                     from (select user, item, rating
                         from ratings
                         where user is Not Null and rating is Not Null) as R1
@@ -126,9 +125,9 @@ def popularity_based_rating(user_input=True, item_cnt=None):
                         group by user) as R2
                         on R1.user = R2.user
                 ) R3
-                where R3.item >=150 and R3.item < 350
                 group by R3.item
-                order by prediction desc, item asc limit {rec_num}""" ####영렬: min_rating, max_rating 뿐만 아니라 sum_rating도 산출해서, min, max가 동일할 경우 sum_rating으로 나누는 방식 도입 필요
+                having R3.item >=150 and R3.item < 350
+                order by prediction desc, item asc limit {rec_num}""" 
                                                                         
     # 쿼리의 결과를 sample 변수에 저장하세요.
     sample = get_output(query)
@@ -160,8 +159,7 @@ def ibcf(user_input=True, user_id=None, item_cnt=None):
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
-    query = f"""select G.user as user, G.item as item, G.prediction as prediction 
-            from (select F.user as user, F.item_1 as item, round(sum(F.sim_adj * F.rating_adj), 4) as prediction 
+    query = f"""select F.user as user, F.item_1 as item, round(sum(F.sim_adj * F.rating_adj), 4) as prediction 
                 from (select D.item_1, D.item_2, D.sim_adj, E.user, E.rating_adj 
                 from (select B.item_1, B.item_2, round(B.sim / B.sim_sum, 4) as sim_adj
                     from (select A.item_1, A.item_2, A.sim, sum(A.sim) over (partition by A.item_1) as sim_sum 
@@ -173,10 +171,8 @@ def ibcf(user_input=True, user_id=None, item_cnt=None):
                     ) as E
                 on D.item_2 = E.item) as F
                 group by F.user, F.item_1
-                having F.user = {user} ) as G
-            where G.item not in (select item from ratings where user = {user} and rating is not null )
-            order by prediction desc, item asc limit {rec_num}"""     ### 샛별: 아이템-아이템 유사도의 빈칸은 0으로 처리한다는 부분은 5개가 선택되지 않는 경우로 보임. 
-                                                                      ###       행렬로 처리하지 않는데 해당 부분에 대하 예외 처리가 필요할지 여부
+                having F.user = {user} and F.item_1 not in (select item from ratings where user = {user} and rating is not null )
+                order by prediction desc, item asc limit {rec_num}"""
     
     # 쿼리의 결과를 sample 변수에 저장하세요.
     #sample = [(user, 50-x, x/10)
@@ -212,21 +208,19 @@ def ubcf(user_input=True, user_id=None, item_cnt=None):
 
     # TODO: remove sample, return actual recommendation result as df
     # YOUR CODE GOES HERE !
-    query = f"""select G.user as user, G.item as item, G.prediction as prediction 
-                from (select F.user_1 as user, F.item, round(sum(F.sim_adj * F.rating_adj), 4) as prediction 
-                    from (select D.user_1, D.user_2, D.sim_adj, E.item, E.rating_adj 
-                    from (select B.user_1, B.user_2, round(B.sim / B.sim_sum, 4) as sim_adj
-                        from (select A.user_1, A.user_2, A.sim, sum(A.sim) over (partition by A.user_1) as sim_sum 
-                        from (select user_1, user_2, sim, row_number() over (partition by user_1 order by sim desc, user_2 asc) as rn from user_similarity) as A 
-                        where A.rn <= 5) as B) as D
-                    left join (
-                        select C.user, C.item, case when rating is not null then C.rating else C.avg_rating end as rating_adj from (
-                        select user, item, rating, avg(rating) over (partition by user) as avg_rating from ratings) as C
+    query = f"""select F.user_1 as user, F.item, round(sum(F.sim_adj * F.rating_adj), 4) as prediction 
+                from (select D.user_1, D.user_2, D.sim_adj, E.item, E.rating_adj 
+                from (select B.user_1, B.user_2, round(B.sim / B.sim_sum, 4) as sim_adj
+                    from (select A.user_1, A.user_2, A.sim, sum(A.sim) over (partition by A.user_1) as sim_sum 
+                    from (select user_1, user_2, sim, row_number() over (partition by user_1 order by sim desc, user_2 asc) as rn from user_similarity) as A 
+                    where A.rn <= 5) as B) as D
+                left join (
+                    select C.user, C.item, case when rating is not null then C.rating else C.avg_rating end as rating_adj from (
+                    select user, item, rating, avg(rating) over (partition by user) as avg_rating from ratings) as C
                         ) as E
-                    on D.user_2 = E.user) as F
-                    group by F.user_1, F.item
-                    having F.user_1 = {user} ) as G
-                where G.item not in (select item from ratings where user={user} and rating is not null) 
+                on D.user_2 = E.user) as F
+                group by F.user_1, F.item
+                having F.user_1 = {user} and F.item not in (select item from ratings where user={user} and rating is not null) 
                 order by prediction desc, item asc limit {rec_num}"""
     
     res = get_output(query)
